@@ -5,7 +5,7 @@
       "target": "Plazma Paradize",
       "players": {
         "815787347526156310": {
-          "name": "Ringo suzuran",
+          "name": "りんご　水野",
           "current": "Plazma Paradize",
           "guesses": 5,
           "distance": 13647.161999913882,
@@ -27,6 +27,17 @@
           "solved": true,
           "visited": [
             "Promenade",
+            "Plazma Paradize"
+          ],
+          "revealed": {}
+        },
+        "892639617378037810": {
+          "name": "Ringo Astra",
+          "current": "Plazma Paradize",
+          "guesses": 1,
+          "distance": 2899.189024537724,
+          "solved": true,
+          "visited": [
             "Plazma Paradize"
           ],
           "revealed": {}

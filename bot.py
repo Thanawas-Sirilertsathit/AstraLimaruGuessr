@@ -1,11 +1,10 @@
 """Astra Magical Girl: daily landmark hunt Discord bot.
-
 Requirements: discord.py>=2.4, python-decouple>=3.8
-Environment: DISCORD_TOKEN in .env
 Run: python bot.py
-"""
-from __future__ import annotations
 
+"""
+
+from __future__ import annotations
 import asyncio
 import json
 import logging
@@ -16,12 +15,10 @@ import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
-
 import discord
 from decouple import config
 from discord import app_commands
 from discord.ext import commands, tasks
-
 BASE = Path(__file__).resolve().parent
 LANDMARK_FILE = BASE / "landmark_data.json"
 PLAYER_FILE = BASE / "player_data.json"
@@ -91,6 +88,7 @@ def pattern(guess: str, answer: str) -> str:
 
 
 class AstraBot(commands.Bot):
+
     def __init__(self):
         intents = discord.Intents.default()
         intents.reactions = True
@@ -115,11 +113,25 @@ class AstraBot(commands.Bot):
             raise ValueError("At least two distinct landmarks are required")
         self.state = load_json(PLAYER_FILE, {"days": {}})
         if not isinstance(self.state, dict) or not isinstance(self.state.get("days"), dict):
-            raise ValueError("player_data.json must contain an object with a 'days' object")
+            raise ValueError(
+                "player_data.json must contain an object with a 'days' object")
         self.lock = asyncio.Lock()
 
     async def setup_hook(self):
-        await self.tree.sync()
+        # Enable RESET_COMMANDS=true in .env for ONE restart to remove stale
+        # global slash commands and register the current set from scratch.
+        if config("RESET_COMMANDS", default=False, cast=bool):
+            registered = list(self.tree.get_commands(guild=None))
+            self.tree.clear_commands(guild=None)
+            # delete previously registered global commands
+            await self.tree.sync(guild=None)
+            for command in registered:
+                self.tree.add_command(command)
+            log.info(
+                "Cleared old global commands; restoring %d commands.", len(registered))
+        synced = await self.tree.sync(guild=None)
+        log.info("Synced %d global slash commands: %s", len(synced),
+                 ", ".join(command.name for command in synced))
         self.date_check.start()
 
     async def close(self):
@@ -137,7 +149,8 @@ class AstraBot(commands.Bot):
                 del days[date]
         if today not in days:
             start, target = random.sample(self.landmarks, 2)
-            days[today] = {"start": start["name"], "target": target["name"], "players": {}}
+            days[today] = {"start": start["name"],
+                           "target": target["name"], "players": {}}
         save_json(PLAYER_FILE, self.state)
         return days[today]
 
@@ -168,13 +181,15 @@ def landmark_page(items: list, index: int, title: str) -> discord.Embed:
     pages = max(1, math.ceil(len(items) / PAGE_SIZE))
     index = max(0, min(index, pages - 1))
     embed = discord.Embed(title=title, color=discord.Color.purple())
-    chunk = items[index * PAGE_SIZE : (index + 1) * PAGE_SIZE]
+    chunk = items[index * PAGE_SIZE: (index + 1) * PAGE_SIZE]
     if not chunk:
         embed.description = "No matching landmarks found."
     for entry in chunk:
         c = entry["coords"]
-        embed.add_field(name=entry["name"], value=f"{entry.get('region', 'Unknown region')}\nX: {c['x']} · Z: {c['z']}", inline=False)
-    embed.set_footer(text=f"Page {index + 1}/{pages} · {len(items)} landmarks" + (" · React ⬅️ / ➡️ to turn pages" if pages > 1 else ""))
+        embed.add_field(
+            name=entry["name"], value=f"{entry.get('region', 'Unknown region')}\nX: {c['x']} · Z: {c['z']}", inline=False)
+    embed.set_footer(text=f"Page {index + 1}/{pages} · {len(items)} landmarks" + (
+        " · React ⬅️ / ➡️ to turn pages" if pages > 1 else ""))
     return embed
 
 
@@ -196,7 +211,6 @@ async def paginated(interaction: discord.Interaction, items: list, title: str):
     def check(reaction: discord.Reaction, user: discord.User | discord.Member) -> bool:
         return (user.id == interaction.user.id and reaction.message.id == message.id
                 and str(reaction.emoji) in {LEFT, RIGHT})
-
     while True:
         try:
             reaction, user = await bot.wait_for("reaction_add", timeout=120, check=check)
@@ -228,7 +242,8 @@ async def search_command(interaction: discord.Interaction, text: str):
     if not term:
         await interaction.response.send_message("Enter a name or region to search.", ephemeral=True)
         return
-    results = [p for p in bot.landmarks if term in normalize(p["name"]) or term in normalize(p.get("region", ""))]
+    results = [p for p in bot.landmarks if term in normalize(
+        p["name"]) or term in normalize(p.get("region", ""))]
     await paginated(interaction, results, f"🔎 Search: {text[:80]}")
 
 
@@ -240,7 +255,7 @@ async def daily_command(interaction: discord.Interaction):
         start = bot.by_name[normalize(day["start"])]
         bot.state["days"][bot.today()] = day
         save_json(PLAYER_FILE, bot.state)
-        msg = (f"✨ Astra starts at **{start['name']}** ({start.get('region','Unknown')}).\n"
+        msg = (f"✨ Astra starts at **{start['name']}** ({start.get('region', 'Unknown')}).\n"
                f"🔤 {count_hint(start['name'], day['target'])}\n"
                f"📍 Current position: **{p['current']}**\n"
                f"🎯 Guesses: **{p['guesses']}** · Travel: **{p['distance']:.1f} blocks**\n"
@@ -250,7 +265,8 @@ async def daily_command(interaction: discord.Interaction):
 
 async def landmark_autocomplete(interaction: discord.Interaction, current: str) -> list[app_commands.Choice[str]]:
     term = normalize(current)
-    candidates = [p["name"] for p in bot.landmarks if term in normalize(p["name"])]
+    candidates = [p["name"]
+                  for p in bot.landmarks if term in normalize(p["name"])]
     return [app_commands.Choice(name=name[:100], value=name[:100]) for name in candidates[:25]]
 
 
@@ -258,11 +274,19 @@ async def landmark_autocomplete(interaction: discord.Interaction, current: str) 
 @app_commands.describe(landmark="Landmark name; choose from autocomplete")
 @app_commands.autocomplete(landmark=landmark_autocomplete)
 async def guess_command(interaction: discord.Interaction, landmark: str):
+    # Discord needs the interaction acknowledged quickly, before image upload or disk IO.
+    await interaction.response.defer(ephemeral=True, thinking=True)
     destination = bot.by_name.get(normalize(landmark))
     if destination is None:
-        await interaction.response.send_message("Unknown landmark. Use `/search` or select an autocomplete suggestion.", ephemeral=True)
+        await interaction.followup.send(
+            "Unknown landmark. Use `/search` or select an autocomplete suggestion.",
+            ephemeral=True,
+        )
         return
     success_landmark = None
+    guesses = 0
+    distance_traveled = 0.0
+    game_date = ""
     async with bot.lock:
         day = bot.ensure_today()
         p = bot.player(day, interaction.user)
@@ -278,86 +302,213 @@ async def guess_command(interaction: discord.Interaction, landmark: str):
             if normalize(destination["name"]) == normalize(day["target"]):
                 p["solved"] = True
                 success_landmark = destination
-                msg = (f"🎉 **Astra found Nova at {destination['name']}!**\n"
-                       f"Guesses: **{p['guesses']}**\nTotal travel: **{p['distance']:.1f} blocks**")
+                guesses = p["guesses"]
+                distance_traveled = p["distance"]
+                game_date = bot.today()
             else:
                 target = bot.by_name[normalize(day["target"])]
-                parts = [f"✨ Astra traveled to **{destination['name']}**!",
-                         f"🛣️ +{travelled:.1f} blocks · Total **{p['distance']:.1f} blocks** · Guesses **{p['guesses']}**",
-                         f"🔤 {count_hint(destination['name'], target['name'])}"]
-                same_count = len(letters(destination["name"])) == len(letters(target["name"]))
-                hint_type = random.choice(["pattern", "direction"]) if same_count else "direction"
+                parts = [
+                    f"✨ Astra traveled to **{destination['name']}**!",
+                    f"🛣️ +{travelled:.1f} blocks · Total **{p['distance']:.1f} blocks** · Guesses **{p['guesses']}**",
+                    f"🔤 {count_hint(destination['name'], target['name'])}",
+                ]
+                same_count = len(letters(destination["name"])) == len(
+                    letters(target["name"]))
+                hint_type = random.choice(
+                    ["pattern", "direction"]) if same_count else "direction"
                 if hint_type == "pattern":
-                    parts.append(f"🧩 `{pattern(destination['name'], target['name'])}`")
+                    parts.append(
+                        f"🧩 `{pattern(destination['name'], target['name'])}`")
                 else:
-                    parts.append(f"🧭 Nova is to the **{direction(destination, target)}**.")
+                    parts.append(
+                        f"🧭 Nova is to the **{direction(destination, target)}**.")
                 msg = "\n".join(parts)
         save_json(PLAYER_FILE, bot.state)
-    if success_landmark is not None:
-        embed = discord.Embed(
-            title=f"🎉 Astra found Nova at {success_landmark['name']}!",
-            description=(
-                f"📍 **Region:** {success_landmark.get('region', 'Unknown')}\n"
-                f"🎯 **Guesses:** {p['guesses']}\n"
-                f"🛣️ **Total travel:** {p['distance']:.1f} blocks"
-            ),
-            color=discord.Color.purple(),
-        )
-        # Image filename comes directly from landmark_data.json.
-        image_name = success_landmark.get("image")
-        if isinstance(image_name, str) and image_name and Path(image_name).name == image_name:
-            image_path = IMAGE_DIR / image_name
-            if image_path.is_file():
-                picture = discord.File(image_path, filename=image_name)
-                embed.set_image(url=f"attachment://{image_name}")
-                await interaction.response.send_message(embed=embed, file=picture, ephemeral=True)
-                return
-        embed.set_footer(text="Landmark picture unavailable.")
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+    if success_landmark is None:
+        await interaction.followup.send(msg, ephemeral=True)
         return
+    # PRIVATE victory result: reveal target and image to the player only.
+    private_embed = discord.Embed(
+        title=f"🎉 Astra found Nova at {success_landmark['name']}!",
+        description=(
+            f"📍 **Region:** {success_landmark.get('region', 'Unknown')}\n"
+            f"🎯 **Guesses:** {guesses}\n"
+            f"🛣️ **Total travel:** {distance_traveled:.1f} blocks"
+        ),
+        color=discord.Color.purple(),
+    )
+    picture = attached_landmark_image(success_landmark, private_embed)
+    if picture is None:
+        private_embed.set_footer(
+            text="Landmark picture unavailable in images/.")
+    # Deliver private victory first. Even with no file, the win is still recorded.
+    try:
+        if picture is not None:
+            await interaction.followup.send(embed=private_embed, file=picture, ephemeral=True)
+        else:
+            await interaction.followup.send(embed=private_embed, ephemeral=True)
+    except (discord.HTTPException, OSError):
+        log.exception(
+            "Could not deliver private victory image; retrying without image")
+        private_embed.set_image(url=None)
+        await interaction.followup.send(embed=private_embed, ephemeral=True)
+    # PUBLIC: keep the destination and picture completely secret.
+    public_embed = discord.Embed(
+        title="🌟 Astra Magical Girl — Daily Result",
+        description=f"{interaction.user.mention} successfully completed today's mystery!",
+        color=discord.Color.gold(),
+    )
+    public_embed.add_field(name="🎯 Number of guesses",
+                           value=str(guesses), inline=True)
+    public_embed.add_field(name="🛣️ Distance traveled",
+                           value=f"{distance_traveled:.1f} blocks", inline=True)
+    public_embed.set_footer(
+        text=f"{game_date} (GMT+8) • Nova's location remains a secret")
+    # Explicitly post to the channel, avoiding ambiguity about whether the
+    # deferred ephemeral interaction could affect followup visibility.
+    if interaction.channel is None:
+        log.error(
+            "Unable to publish the public result: no channel for interaction %s", interaction.id)
+        return
+    try:
+        await interaction.channel.send(embed=public_embed)
+    except discord.HTTPException:
+        log.exception("Unable to post public result for player %s",
+                      interaction.user.id)
 
-    await interaction.response.send_message(msg, ephemeral=True)
+
+@bot.tree.command(name="checkimages", description="Check whether landmark pictures are installed.")
+async def checkimages_command(interaction: discord.Interaction):
+    missing = []
+    installed = 0
+    for landmark in bot.landmarks:
+        filename = landmark.get("image")
+        if isinstance(filename, str) and filename and Path(filename).name == filename and (IMAGE_DIR / filename).is_file():
+            installed += 1
+        else:
+            missing.append(
+                f"{landmark['name']}: {filename or '(filename missing)'}")
+    description = (
+        f"📷 Found **{installed}/{len(bot.landmarks)}** landmark pictures in `images/`.\n")
+    if missing:
+        description += "\n**Missing pictures:**\n" + \
+            "\n".join(f"• {item}" for item in missing[:20])
+        if len(missing) > 20:
+            description += f"\n... and {len(missing)-20} more"
+    else:
+        description += "✅ All landmark pictures are installed."
+    await interaction.response.send_message(description[:1900], ephemeral=True)
 
 
-@bot.tree.command(name="status", description="View your current daily progress.")
+def attached_landmark_image(landmark: dict, embed: discord.Embed) -> discord.File | None:
+    """Attach an image from images/<JSON image filename> when available."""
+    filename = landmark.get("image")
+    if not isinstance(filename, str) or not filename or Path(filename).name != filename:
+        return None
+    path = IMAGE_DIR / filename
+    if not path.is_file():
+        log.warning("Landmark image is missing: %s", path)
+        return None
+    embed.set_image(url=f"attachment://{filename}")
+    return discord.File(path, filename=filename)
+
+
+@bot.tree.command(name="status", description="View your progress and current landmark picture.")
 async def status_command(interaction: discord.Interaction):
     async with bot.lock:
         day = bot.ensure_today()
         p = bot.player(day, interaction.user)
-        msg = (f"📍 Current: **{p['current']}**\n🎯 Guesses: **{p['guesses']}**\n"
-               f"🛣️ Total traveled: **{p['distance']:.1f} blocks**\n"
-               f"{'✅ Nova found!' if p['solved'] else '🔍 Still searching for Nova.'}")
+        current_name = p["current"]
+        guesses = p["guesses"]
+        distance_traveled = p["distance"]
+        solved = p["solved"]
         save_json(PLAYER_FILE, bot.state)
-    await interaction.response.send_message(msg, ephemeral=True)
+    current_landmark = bot.by_name[normalize(current_name)]
+    embed = discord.Embed(
+        title="✨ Astra's Daily Journey",
+        description=(
+            f"📍 **Current location:** {current_name}\n"
+            f"🎯 **Guesses:** {guesses}\n"
+            f"🛣️ **Total travel:** {distance_traveled:.1f} blocks\n"
+            f"{'✅ Nova found!' if solved else '🔍 Still searching for Nova.'}"
+        ),
+        color=discord.Color.purple(),
+    )
+    picture = attached_landmark_image(current_landmark, embed)
+    if picture:
+        await interaction.response.send_message(embed=embed, file=picture, ephemeral=True)
+    else:
+        embed.set_footer(
+            text="Current landmark picture unavailable in images/.")
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+@bot.tree.command(name="share", description="Share your completed result without revealing Nova's location.")
+async def share_command(interaction: discord.Interaction):
+    async with bot.lock:
+        day = bot.ensure_today()
+        player = day["players"].get(str(interaction.user.id))
+        if player is None or not player.get("solved"):
+            ready = False
+        else:
+            ready = True
+            guesses = player["guesses"]
+            distance_traveled = player["distance"]
+            game_date = bot.today()
+    if not ready:
+        await interaction.response.send_message(
+            "🔍 Find Nova first using `/guess`, then you can share your result!",
+            ephemeral=True,
+        )
+        return
+    embed = discord.Embed(
+        title="🌟 Astra Magical Girl — Daily Result",
+        description=f"{interaction.user.mention} successfully completed today's mystery!",
+        color=discord.Color.gold(),
+    )
+    embed.add_field(name="🎯 Number of guesses",
+                    value=str(guesses), inline=True)
+    embed.add_field(name="🛣️ Distance traveled",
+                    value=f"{distance_traveled:.1f} blocks", inline=True)
+    embed.set_footer(
+        text=f"{game_date} (GMT+8) • Nova's location remains a secret")
+    # Explicitly do not include destination name, region, coordinates or picture.
+    await interaction.response.send_message(embed=embed)
 
 
 @bot.tree.command(name="scoreboard", description="View today's or yesterday's scoreboard.")
 @app_commands.choices(day=[app_commands.Choice(name="Today", value="today"),
-                          app_commands.Choice(name="Yesterday", value="yesterday")])
+                           app_commands.Choice(name="Yesterday", value="yesterday")])
 async def scoreboard_command(interaction: discord.Interaction, day: app_commands.Choice[str] | None = None):
     requested = day.value if day else "today"
     async with bot.lock:
         current = datetime.now(GAME_TZ).date()
         data = bot.ensure_today()
-        day_key = (current - timedelta(days=1)).isoformat() if requested == "yesterday" else current.isoformat()
+        day_key = (current - timedelta(days=1)
+                   ).isoformat() if requested == "yesterday" else current.isoformat()
         selected = bot.state["days"].get(day_key)
         if selected is None:
             rows = []
         else:
             rows = list(selected["players"].items())
-        finished = sorted([(uid,p) for uid,p in rows if p.get("solved")], key=lambda x:(x[1]["guesses"], x[1]["distance"], x[0]))
-        unfinished = sorted([(uid,p) for uid,p in rows if not p.get("solved")], key=lambda x:(x[1]["guesses"], x[1]["distance"], x[0]))
-    embed = discord.Embed(title=f"🏆 Astra scoreboard — {day_key} (GMT+8)", color=discord.Color.gold())
+        finished = sorted([(uid, p) for uid, p in rows if p.get(
+            "solved")], key=lambda x: (x[1]["guesses"], x[1]["distance"], x[0]))
+        unfinished = sorted([(uid, p) for uid, p in rows if not p.get(
+            "solved")], key=lambda x: (x[1]["guesses"], x[1]["distance"], x[0]))
+    embed = discord.Embed(
+        title=f"🏆 Astra scoreboard — {day_key} (GMT+8)", color=discord.Color.gold())
     if not rows:
         embed.description = "No players recorded for this day."
     else:
         lines = []
         for index, (uid, p) in enumerate(finished, 1):
-            lines.append(f"**{index}.** <@{uid}> — {p['guesses']} guesses · {p['distance']:.1f} blocks ✅")
+            lines.append(
+                f"**{index}.** <@{uid}> — {p['guesses']} guesses · {p['distance']:.1f} blocks ✅")
         if unfinished:
             lines.append("\n**Still searching (unranked)**")
-            for uid,p in unfinished:
-                lines.append(f"• <@{uid}> — {p['guesses']} guesses · {p['distance']:.1f} blocks")
+            for uid, p in unfinished:
+                lines.append(
+                    f"• <@{uid}> — {p['guesses']} guesses · {p['distance']:.1f} blocks")
         # Embed description limit is 4096 characters.
         embed.description = "\n".join(lines)[:4000]
     await interaction.response.send_message(embed=embed)
@@ -365,7 +516,8 @@ async def scoreboard_command(interaction: discord.Interaction, day: app_commands
 
 @bot.event
 async def on_ready():
-    log.info("Logged in as %s (%s)", bot.user, bot.user.id if bot.user else "?")
+    log.info("Logged in as %s (%s)", bot.user,
+             bot.user.id if bot.user else "?")
 
 
 if __name__ == "__main__":
