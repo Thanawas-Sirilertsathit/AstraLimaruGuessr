@@ -1,0 +1,101 @@
+[
+  {
+    "coords": {
+      "x": -3440,
+      "z": 4778
+    },
+    "name": "Trinity Plaza",
+    "region": "Mizuno (Trinity)",
+    "image": "trinity_plaza.png"
+  },
+  {
+    "coords": {
+      "x": -3272,
+      "z": 4642
+    },
+    "name": "Promenade",
+    "region": "Mizuno (Pater)",
+    "image": "promenade.png"
+  },
+  {
+    "coords": {
+      "x": -3523,
+      "z": 4533
+    },
+    "name": "Lunatic Eye",
+    "region": "Mizuno (Pater)",
+    "image": "lunatic_eye.png"
+  },
+  {
+    "coords": {
+      "x": -3650,
+      "z": 4605
+    },
+    "name": "Astrex Galaxy",
+    "region": "Mizuno (Pater)",
+    "image": "astrex_galaxy.png"
+  },
+  {
+    "coords": {
+      "x": -2350,
+      "z": 5529
+    },
+    "name": "Town Square",
+    "region": "Mizuno (Chitose)",
+    "image": "town_square.png"
+  },
+  {
+    "coords": {
+      "x": -2579,
+      "z": 5169
+    },
+    "name": "Shinreibyou Mausoleum",
+    "region": "Mizuno (Kotoha)",
+    "image": "shinreibyou_mausoleum.png"
+  },
+  {
+    "coords": {
+      "x": -4636,
+      "z": 7419
+    },
+    "name": "Plazma Paradize",
+    "region": "Emmaru (Minami)",
+    "image": "plazma_paradize.png"
+  },
+  {
+    "coords": {
+      "x": -2903,
+      "z": 4489
+    },
+    "name": "Bacon's Barb Mizuno",
+    "region": "Mizuno (Pater)",
+    "image": "bacon_bard_mizuno.png"
+  },
+  {
+    "coords": {
+      "x": -7679,
+      "z": 6362
+    },
+    "name": "Sunrise Base Station",
+    "region": "YJJ City",
+    "image": "sunrise_base_station.png"
+  },
+  {
+    "coords": {
+      "x": -3765,
+      "z": 7902
+    },
+    "name": "Emmaru Port Station",
+    "region": "Emmaru",
+    "image": "emmaru_port_station.png"
+  },
+  {
+    "coords": {
+      "x": -6792,
+      "z": 5863
+    },
+    "name": "Port of Haddock Lighthouse",
+    "region": "YJJ City",
+    "image": "port_haddock_lighthouse.png"
+  }
+]

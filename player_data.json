@@ -1,0 +1,37 @@
+{
+  "days": {
+    "2026-10-13": {
+      "start": "Trinity Plaza",
+      "target": "Plazma Paradize",
+      "players": {
+        "815787347526156310": {
+          "name": "Ringo suzuran",
+          "current": "Plazma Paradize",
+          "guesses": 5,
+          "distance": 13647.161999913882,
+          "solved": true,
+          "visited": [
+            "Town Square",
+            "Promenade",
+            "Port of Haddock Lighthouse",
+            "Shinreibyou Mausoleum",
+            "Plazma Paradize"
+          ],
+          "revealed": {}
+        },
+        "858877086336548866": {
+          "name": "Ringo Curren",
+          "current": "Plazma Paradize",
+          "guesses": 2,
+          "distance": 3310.0493563063046,
+          "solved": true,
+          "visited": [
+            "Promenade",
+            "Plazma Paradize"
+          ],
+          "revealed": {}
+        }
+      }
+    }
+  }
+}
