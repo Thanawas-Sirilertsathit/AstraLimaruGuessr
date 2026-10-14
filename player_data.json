@@ -43,6 +43,11 @@
           "revealed": {}
         }
       }
+    },
+    "2026-10-14": {
+      "start": "Illyasville Resort",
+      "target": "Filius Cathedral",
+      "players": {}
     }
   }
 }

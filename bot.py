@@ -116,6 +116,8 @@ class AstraBot(commands.Bot):
             raise ValueError(
                 "player_data.json must contain an object with a 'days' object")
         self.lock = asyncio.Lock()
+        # Practice sessions are private, unranked, and never written to player_data.json.
+        self.practice = {}
 
     async def setup_hook(self):
         # Enable RESET_COMMANDS=true in .env for ONE restart to remove stale
@@ -375,6 +377,157 @@ async def guess_command(interaction: discord.Interaction, landmark: str):
     except discord.HTTPException:
         log.exception("Unable to post public result for player %s",
                       interaction.user.id)
+
+
+# Practice Mode uses independent private sessions and never updates daily scores.
+# /practice starts a new round, /practiceguess guesses, /practicestatus shows progress.
+
+
+def practice_hint(current: dict, target: dict) -> str:
+    parts = [f"🔤 {count_hint(current['name'], target['name'])}"]
+    same_count = len(letters(current["name"])) == len(letters(target["name"]))
+    hint_type = random.choice(
+        ["pattern", "direction"]) if same_count else "direction"
+    if hint_type == "pattern":
+        parts.append(f"🧩 `{pattern(current['name'], target['name'])}`")
+    else:
+        parts.append(f"🧭 Nova is to the **{direction(current, target)}**.")
+    return "\n".join(parts)
+
+
+async def send_practice_image(interaction: discord.Interaction, embed: discord.Embed,
+                              landmark: dict) -> None:
+    """Reply privately with a landmark image, falling back if unavailable."""
+    picture = attached_landmark_image(landmark, embed)
+    if picture is None:
+        embed.set_footer(text="Landmark picture unavailable in images/.")
+    try:
+        if picture:
+            await interaction.followup.send(embed=embed, file=picture, ephemeral=True)
+        else:
+            await interaction.followup.send(embed=embed, ephemeral=True)
+    except (discord.HTTPException, OSError):
+        log.exception("Could not deliver practice landmark image")
+        embed.set_image(url=None)
+        await interaction.followup.send(embed=embed, ephemeral=True)
+
+
+@bot.tree.command(name="practice", description="Start a new private, unranked practice hunt.")
+async def practice_command(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    async with bot.lock:
+        uid = str(interaction.user.id)
+        old = bot.practice.get(uid)
+        start, target = random.sample(bot.landmarks, 2)
+        # Avoid repeating the previous origin/destination pair when possible.
+        if old and len(bot.landmarks) > 2:
+            for _ in range(20):
+                if (start["name"], target["name"]) != (old["start"], old["target"]):
+                    break
+                start, target = random.sample(bot.landmarks, 2)
+        bot.practice[uid] = {
+            "start": start["name"], "target": target["name"],
+            "current": start["name"], "guesses": 0, "distance": 0.0,
+            "solved": False, "visited": [],
+        }
+        hint = count_hint(start["name"], target["name"])
+    embed = discord.Embed(
+        title="✨ Astra's Practice Hunt — New Round",
+        description=(
+            f"📍 Starting location: **{start['name']}** ({start.get('region', 'Unknown')})\n"
+            f"🔤 {hint}\n"
+            "🎯 Guesses: **0** · Travel: **0.0 blocks**\n"
+            "Use `/practiceguess` to travel to a landmark.\n"
+            "Use `/practice` again whenever you want a fresh round."
+        ),
+        color=discord.Color.purple(),
+    )
+    embed.set_footer(text="Private practice • Unranked • Never shared")
+    await send_practice_image(interaction, embed, start)
+
+
+@bot.tree.command(name="practiceguess", description="Guess a landmark in your private practice hunt.")
+@app_commands.describe(landmark="Landmark name; choose from autocomplete")
+@app_commands.autocomplete(landmark=landmark_autocomplete)
+async def practiceguess_command(interaction: discord.Interaction, landmark: str):
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    destination = bot.by_name.get(normalize(landmark))
+    if destination is None:
+        await interaction.followup.send(
+            "Unknown landmark. Use `/search` or autocomplete.", ephemeral=True)
+        return
+    async with bot.lock:
+        p = bot.practice.get(str(interaction.user.id))
+        if p is None:
+            message = "Start a private round with `/practice` first."
+            success = False
+        elif p["solved"]:
+            message = "✅ You found Nova! Use `/practice` to start another round."
+            success = False
+        else:
+            previous = bot.by_name[normalize(p["current"])]
+            travelled = distance(previous, destination)
+            p["distance"] += travelled
+            p["guesses"] += 1
+            p["current"] = destination["name"]
+            p["visited"].append(destination["name"])
+            target = bot.by_name[normalize(p["target"])]
+            if normalize(destination["name"]) == normalize(target["name"]):
+                p["solved"] = True
+                success = True
+                guesses = p["guesses"]
+                traveled_total = p["distance"]
+            else:
+                success = False
+                message = (
+                    f"✨ Astra traveled to **{destination['name']}**!\n"
+                    f"🛣️ +{travelled:.1f} blocks · Total **{p['distance']:.1f} blocks** "
+                    f"· Guesses **{p['guesses']}**\n"
+                    f"{practice_hint(destination, target)}"
+                )
+    if not success:
+        await interaction.followup.send(message, ephemeral=True)
+        return
+    embed = discord.Embed(
+        title=f"🎉 Practice Complete — Nova was at {destination['name']}!",
+        description=(
+            f"📍 **Region:** {destination.get('region', 'Unknown')}\n"
+            f"🎯 **Guesses:** {guesses}\n"
+            f"🛣️ **Total travel:** {traveled_total:.1f} blocks\n\n"
+            "Use `/practice` to play again with new locations."
+        ),
+        color=discord.Color.purple(),
+    )
+    embed.set_footer(text="Private practice • Unranked • Never shared")
+    await send_practice_image(interaction, embed, destination)
+
+
+@bot.tree.command(name="practicestatus", description="View your private practice progress and location image.")
+async def practicestatus_command(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    async with bot.lock:
+        p = bot.practice.get(str(interaction.user.id))
+        if p is None:
+            details = None
+        else:
+            details = (p["current"], p["guesses"], p["distance"], p["solved"])
+    if details is None:
+        await interaction.followup.send("Start a round with `/practice` first.", ephemeral=True)
+        return
+    current, guesses, traveled_total, solved = details
+    landmark = bot.by_name[normalize(current)]
+    embed = discord.Embed(
+        title="✨ Astra's Practice Journey",
+        description=(
+            f"📍 **Current location:** {current}\n"
+            f"🎯 **Guesses:** {guesses}\n"
+            f"🛣️ **Total travel:** {traveled_total:.1f} blocks\n"
+            f"{'✅ Nova found! Use `/practice` for another round.' if solved else '🔍 Still searching for Nova.'}"
+        ),
+        color=discord.Color.purple(),
+    )
+    embed.set_footer(text="Private practice • Unranked • Never shared")
+    await send_practice_image(interaction, embed, landmark)
 
 
 @bot.tree.command(name="checkimages", description="Check whether landmark pictures are installed.")
