@@ -40,7 +40,7 @@
 			"x": -2350,
 			"z": 5529
 		},
-		"name": "Town Square",
+		"name": "Chitose Town Square",
 		"region": "Mizuno (Chitose)",
 		"image": "town_square.png"
 	},
@@ -187,5 +187,32 @@
 		"name": "Glacier Inc",
 		"region": "Mizuno (Sanctus)",
 		"image": "glacier_inc.png"
+	},
+	{
+		"coords": {
+			"x": -6925,
+			"z": 8936
+		},
+		"name": "Calle de Philippa",
+		"region": "Losning",
+		"image": "calle_de_philippa.png"
+	},
+	{
+		"coords": {
+			"x": -6937,
+			"z": 9018
+		},
+		"name": "Solutional's House",
+		"region": "Losning",
+		"image": "solutional_house.png"
+	},
+	{
+		"coords": {
+			"x": -7125,
+			"z": 8567
+		},
+		"name": "BEC",
+		"region": "Losning",
+		"image": "bec.png"
 	}
 ]
