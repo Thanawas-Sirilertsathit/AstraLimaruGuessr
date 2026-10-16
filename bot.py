@@ -9,9 +9,13 @@ import asyncio
 import json
 import logging
 import math
+import io
+from PIL import Image, ImageDraw, ImageFont
 import os
 import random
 import re
+import tempfile
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -23,6 +27,9 @@ BASE = Path(__file__).resolve().parent
 LANDMARK_FILE = BASE / "landmark_data.json"
 PLAYER_FILE = BASE / "player_data.json"
 IMAGE_DIR = BASE / "images"
+MAP_FILE = BASE / "map_image.png"
+MAP_X_LEFT, MAP_X_RIGHT = -9317, -1955
+MAP_Z_TOP, MAP_Z_BOTTOM = 4033, 9450
 GAME_TZ = timezone(timedelta(hours=8))
 PAGE_SIZE = 10
 LEFT, RIGHT = "⬅️", "➡️"
@@ -39,10 +46,34 @@ def load_json(path: Path, default: Any) -> Any:
 
 
 def save_json(path: Path, data: Any) -> None:
-    temp = path.with_name(path.name + ".tmp")
-    with temp.open("w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-    os.replace(temp, path)
+    """Atomically save JSON, tolerating brief Windows file locks.
+
+    A unique temporary file prevents collisions with other in-process saves.
+    Windows may briefly block os.replace while an antivirus or editor scans
+    the destination. Persistent permission problems are still reported.
+    """
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w", encoding="utf-8", dir=path.parent,
+            prefix=path.name + ".", suffix=".tmp", delete=False
+        ) as f:
+            temporary = Path(f.name)
+            json.dump(data, f, ensure_ascii=False, indent=2)
+            f.flush()
+
+        for attempt in range(5):
+            try:
+                os.replace(temporary, path)
+                temporary = None
+                return
+            except PermissionError:
+                if attempt == 4:
+                    raise
+                time.sleep(0.2)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
 
 
 def normalize(value: str) -> str:
@@ -144,16 +175,23 @@ class AstraBot(commands.Bot):
         return datetime.now(GAME_TZ).date().isoformat()
 
     def ensure_today(self) -> dict:
-        today = self.today()
+        """Create/clean daily records, saving only when the data changes."""
+        current_date = datetime.now(GAME_TZ).date()
+        today = current_date.isoformat()
+        yesterday = (current_date - timedelta(days=1)).isoformat()
         days = self.state["days"]
+        changed = False
         for date in list(days):
-            if date not in {today, (datetime.now(GAME_TZ).date() - timedelta(days=1)).isoformat()}:
+            if date not in {today, yesterday}:
                 del days[date]
+                changed = True
         if today not in days:
             start, target = random.sample(self.landmarks, 2)
             days[today] = {"start": start["name"],
                            "target": target["name"], "players": {}}
-        save_json(PLAYER_FILE, self.state)
+            changed = True
+        if changed:
+            save_json(PLAYER_FILE, self.state)
         return days[today]
 
     def player(self, day: dict, user: discord.abc.User) -> dict:
@@ -177,6 +215,87 @@ class AstraBot(commands.Bot):
 
 
 bot = AstraBot()
+
+
+def render_progress_map(start_name: str, visited: list[str]) -> io.BytesIO:
+    """Overlay a player's journey; never draw Nova's hidden destination."""
+    with Image.open(MAP_FILE) as source:
+        canvas = source.convert("RGB")
+    width, height = canvas.size
+    draw = ImageDraw.Draw(canvas)
+    try:
+        font = ImageFont.truetype("DejaVuSans-Bold.ttf", max(12, width // 65))
+    except OSError:
+        font = ImageFont.load_default()
+
+    def pixel(name: str) -> tuple[int, int]:
+        landmark = bot.by_name[normalize(name)]
+        x, z = landmark["coords"]["x"], landmark["coords"]["z"]
+        px = round((x - MAP_X_LEFT) / (MAP_X_RIGHT - MAP_X_LEFT) * (width - 1))
+        py = round((z - MAP_Z_TOP) / (MAP_Z_BOTTOM - MAP_Z_TOP) * (height - 1))
+        return px, py
+
+    route = [start_name, *visited]
+    positions = [pixel(name) for name in route]
+    # Draw only segments whose endpoints fall within the supplied map.
+    def inside(point):
+        return 0 <= point[0] < width and 0 <= point[1] < height
+
+    for a, b in zip(positions, positions[1:]):
+        if inside(a) and inside(b):
+            draw.line((a, b), fill=(20, 20, 20), width=8)
+            draw.line((a, b), fill=(255, 210, 60), width=5)
+    for index, point in enumerate(positions):
+        if not inside(point):
+            continue
+        x, y = point
+        radius = 13 if index == len(positions) - 1 else 10
+        fill = (48, 210, 105) if index == 0 else (60, 155, 255)
+        if index == len(positions) - 1 and index > 0:
+            fill = (255, 105, 65)
+        draw.ellipse((x-radius-2, y-radius-2, x+radius+2, y+radius+2),
+                     fill=(10, 20, 35))
+        draw.ellipse((x-radius, y-radius, x+radius, y+radius), fill=fill)
+        label = "S" if index == 0 else str(index)
+        draw.text((x, y), label, font=font, anchor="mm", fill="white",
+                  stroke_width=1, stroke_fill="black")
+    output = io.BytesIO()
+    canvas.save(output, format="PNG")
+    output.seek(0)
+    return output
+
+
+async def send_progress_map(interaction: discord.Interaction, mode: str) -> None:
+    """Send a private route map after a daily or practice action."""
+    if not MAP_FILE.is_file():
+        log.warning("Missing map image: %s", MAP_FILE)
+        return
+    async with bot.lock:
+        if mode == "practice":
+            session = bot.practice.get(str(interaction.user.id))
+            if session is None:
+                return
+            start = session["start"]
+            visited = list(session["visited"])
+        else:
+            day = bot.ensure_today()
+            session = day["players"].get(str(interaction.user.id))
+            if session is None:
+                return
+            start = day["start"]
+            visited = list(session["visited"])
+    try:
+        image = render_progress_map(start, visited)
+        embed = discord.Embed(title="🗺️ Astra's Journey Map",
+                              description=f"Start: 🟢 · Guesses: 🔵 · Latest: 🟠 · {len(visited)} guesses",
+                              color=discord.Color.purple())
+        embed.set_image(url="attachment://journey_map.png")
+        await interaction.followup.send(embed=embed,
+                                        file=discord.File(image, filename="journey_map.png"),
+                                        ephemeral=True)
+    except (OSError, ValueError, KeyError, discord.HTTPException):
+        log.exception("Unable to render/send %s journey map", mode)
+
 
 
 def landmark_page(items: list, index: int, title: str) -> discord.Embed:
@@ -263,6 +382,7 @@ async def daily_command(interaction: discord.Interaction):
                f"🎯 Guesses: **{p['guesses']}** · Travel: **{p['distance']:.1f} blocks**\n"
                + ("✅ You already found Nova today!" if p["solved"] else "Use `/guess` to travel to a landmark."))
     await interaction.response.send_message(msg, ephemeral=True)
+    await send_progress_map(interaction, "daily")
 
 
 async def landmark_autocomplete(interaction: discord.Interaction, current: str) -> list[app_commands.Choice[str]]:
@@ -328,6 +448,7 @@ async def guess_command(interaction: discord.Interaction, landmark: str):
         save_json(PLAYER_FILE, bot.state)
     if success_landmark is None:
         await interaction.followup.send(msg, ephemeral=True)
+        await send_progress_map(interaction, "daily")
         return
     # PRIVATE victory result: reveal target and image to the player only.
     private_embed = discord.Embed(
@@ -354,6 +475,7 @@ async def guess_command(interaction: discord.Interaction, landmark: str):
             "Could not deliver private victory image; retrying without image")
         private_embed.set_image(url=None)
         await interaction.followup.send(embed=private_embed, ephemeral=True)
+    await send_progress_map(interaction, "daily")
     # PUBLIC: keep the destination and picture completely secret.
     public_embed = discord.Embed(
         title="🌟 Astra Magical Girl — Daily Result",
@@ -386,8 +508,7 @@ async def guess_command(interaction: discord.Interaction, landmark: str):
 def practice_hint(current: dict, target: dict) -> str:
     parts = [f"🔤 {count_hint(current['name'], target['name'])}"]
     same_count = len(letters(current["name"])) == len(letters(target["name"]))
-    hint_type = random.choice(
-        ["pattern", "direction"]) if same_count else "direction"
+    hint_type = random.choice(["pattern", "direction"]) if same_count else "direction"
     if hint_type == "pattern":
         parts.append(f"🧩 `{pattern(current['name'], target['name'])}`")
     else:
@@ -444,6 +565,7 @@ async def practice_command(interaction: discord.Interaction):
     )
     embed.set_footer(text="Private practice • Unranked • Never shared")
     await send_practice_image(interaction, embed, start)
+    await send_progress_map(interaction, "practice")
 
 
 @bot.tree.command(name="practiceguess", description="Guess a landmark in your private practice hunt.")
@@ -487,6 +609,7 @@ async def practiceguess_command(interaction: discord.Interaction, landmark: str)
                 )
     if not success:
         await interaction.followup.send(message, ephemeral=True)
+        await send_progress_map(interaction, "practice")
         return
     embed = discord.Embed(
         title=f"🎉 Practice Complete — Nova was at {destination['name']}!",
@@ -500,6 +623,7 @@ async def practiceguess_command(interaction: discord.Interaction, landmark: str)
     )
     embed.set_footer(text="Private practice • Unranked • Never shared")
     await send_practice_image(interaction, embed, destination)
+    await send_progress_map(interaction, "practice")
 
 
 @bot.tree.command(name="practicestatus", description="View your private practice progress and location image.")
@@ -528,6 +652,7 @@ async def practicestatus_command(interaction: discord.Interaction):
     )
     embed.set_footer(text="Private practice • Unranked • Never shared")
     await send_practice_image(interaction, embed, landmark)
+    await send_progress_map(interaction, "practice")
 
 
 @bot.tree.command(name="checkimages", description="Check whether landmark pictures are installed.")
@@ -594,6 +719,7 @@ async def status_command(interaction: discord.Interaction):
         embed.set_footer(
             text="Current landmark picture unavailable in images/.")
         await interaction.response.send_message(embed=embed, ephemeral=True)
+    await send_progress_map(interaction, "daily")
 
 
 @bot.tree.command(name="share", description="Share your completed result without revealing Nova's location.")

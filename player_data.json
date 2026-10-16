@@ -1,53 +1,24 @@
 {
   "days": {
-    "2026-10-13": {
-      "start": "Trinity Plaza",
-      "target": "Plazma Paradize",
+    "2026-10-16": {
+      "start": "Filius Theatre",
+      "target": "Shinreibyou Mausoleum",
       "players": {
         "815787347526156310": {
           "name": "りんご　水野",
-          "current": "Plazma Paradize",
-          "guesses": 5,
-          "distance": 13647.161999913882,
-          "solved": true,
-          "visited": [
-            "Town Square",
-            "Promenade",
-            "Port of Haddock Lighthouse",
-            "Shinreibyou Mausoleum",
-            "Plazma Paradize"
-          ],
-          "revealed": {}
-        },
-        "858877086336548866": {
-          "name": "Ringo Curren",
-          "current": "Plazma Paradize",
-          "guesses": 2,
-          "distance": 3310.0493563063046,
+          "current": "Shinreibyou Mausoleum",
+          "guesses": 4,
+          "distance": 6794.683763460395,
           "solved": true,
           "visited": [
             "Promenade",
-            "Plazma Paradize"
-          ],
-          "revealed": {}
-        },
-        "892639617378037810": {
-          "name": "Ringo Astra",
-          "current": "Plazma Paradize",
-          "guesses": 1,
-          "distance": 2899.189024537724,
-          "solved": true,
-          "visited": [
-            "Plazma Paradize"
+            "Plazma Paradize",
+            "Chitose Town Square",
+            "Shinreibyou Mausoleum"
           ],
           "revealed": {}
         }
       }
-    },
-    "2026-10-14": {
-      "start": "Illyasville Resort",
-      "target": "Filius Cathedral",
-      "players": {}
     }
   }
 }

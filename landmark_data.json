@@ -214,5 +214,86 @@
 		"name": "BEC",
 		"region": "Losning",
 		"image": "bec.png"
+	},
+	{
+		"coords": {
+			"x": -4674,
+			"z": 6617
+		},
+		"name": "Sakurami Elementary School",
+		"region": "Emmaru",
+		"image": "sakurami_elementary_school.png"
+	},
+	{
+		"coords": {
+			"x": -4388,
+			"z": 6656
+		},
+		"name": "Tuck Park Stadium",
+		"region": "Emmaru",
+		"image": "tuck_park_stadium.png"
+	},
+	{
+		"coords": {
+			"x": -4049,
+			"z": 7039
+		},
+		"name": "New Traxia",
+		"region": "Emmaru",
+		"image": "new_traxia.png"
+	},
+	{
+		"coords": {
+			"x": -3723,
+			"z": 7518
+		},
+		"name": "Kingston Park",
+		"region": "Emmaru",
+		"image": "kingston_park.png"
+	},
+	{
+		"coords": {
+			"x": -4593,
+			"z": 7183
+		},
+		"name": "Akane",
+		"region": "Emmaru",
+		"image": "akane.png"
+	},
+	{
+		"coords": {
+			"x": -4647,
+			"z": 7695
+		},
+		"name": "Madokashi Roundabout",
+		"region": "Emmaru",
+		"image": "madokashi_roundabout.png"
+	},
+	{
+		"coords": {
+			"x": -4524,
+			"z": 7815
+		},
+		"name": "Goschi",
+		"region": "Emmaru",
+		"image": "goschi.png"
+	},
+	{
+		"coords": {
+			"x": -4953,
+			"z": 7463
+		},
+		"name": "Karasuma Shopping Alley",
+		"region": "Emmaru",
+		"image": "karasuma_shopping_alley.png"
+	},
+	{
+		"coords": {
+			"x": -4296,
+			"z": 7646
+		},
+		"name": "Gojo Station",
+		"region": "Emmaru",
+		"image": "gojo_station.png"
 	}
 ]
