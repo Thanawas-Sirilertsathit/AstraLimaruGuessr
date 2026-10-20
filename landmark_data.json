@@ -295,5 +295,14 @@
 		"name": "Gojo Station",
 		"region": "Emmaru",
 		"image": "gojo_station.png"
+	},
+	{
+		"coords": {
+			"x": -4296,
+			"z": 7646
+		},
+		"name": "WHCB Parkston",
+		"region": "Parkston",
+		"image": "whcb_parkston.png"
 	}
 ]

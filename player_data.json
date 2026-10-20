@@ -1,20 +1,19 @@
 {
   "days": {
-    "2026-10-16": {
-      "start": "Filius Theatre",
-      "target": "Shinreibyou Mausoleum",
+    "2026-10-18": {
+      "start": "New Traxia",
+      "target": "Filius Cathedral",
       "players": {
         "815787347526156310": {
           "name": "りんご　水野",
-          "current": "Shinreibyou Mausoleum",
-          "guesses": 4,
-          "distance": 6794.683763460395,
-          "solved": true,
+          "current": "Filius Theatre",
+          "guesses": 3,
+          "distance": 3374.3661824163373,
+          "solved": false,
           "visited": [
             "Promenade",
-            "Plazma Paradize",
-            "Chitose Town Square",
-            "Shinreibyou Mausoleum"
+            "Lunatic Eye",
+            "Filius Theatre"
           ],
           "revealed": {}
         }

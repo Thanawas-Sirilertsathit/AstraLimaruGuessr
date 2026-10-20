@@ -1,9 +1,12 @@
 """Astra Magical Girl: daily landmark hunt Discord bot.
+
 Requirements: discord.py>=2.4, python-decouple>=3.8
+
 Run: python bot.py
 
-"""
 
+
+"""
 from __future__ import annotations
 import asyncio
 import json
@@ -33,7 +36,6 @@ MAP_Z_TOP, MAP_Z_BOTTOM = 4033, 9450
 GAME_TZ = timezone(timedelta(hours=8))
 PAGE_SIZE = 10
 LEFT, RIGHT = "⬅️", "➡️"
-
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("astra")
 
@@ -48,9 +50,14 @@ def load_json(path: Path, default: Any) -> Any:
 def save_json(path: Path, data: Any) -> None:
     """Atomically save JSON, tolerating brief Windows file locks.
 
+
+
     A unique temporary file prevents collisions with other in-process saves.
+
     Windows may briefly block os.replace while an antivirus or editor scans
+
     the destination. Persistent permission problems are still reported.
+
     """
     temporary = None
     try:
@@ -61,7 +68,6 @@ def save_json(path: Path, data: Any) -> None:
             temporary = Path(f.name)
             json.dump(data, f, ensure_ascii=False, indent=2)
             f.flush()
-
         for attempt in range(5):
             try:
                 os.replace(temporary, path)
@@ -107,10 +113,10 @@ def direction(current: dict, target: dict) -> str:
 def count_hint(guess: str, answer: str) -> str:
     g, a = len(letters(guess)), len(letters(answer))
     if a > g:
-        return "Nova's landmark has **more** letters."
+        return "Nova's landmark has *more* letters."
     if a < g:
-        return "Nova's landmark has **fewer** letters."
-    return "Nova's landmark has an **equal** number of letters."
+        return "Nova's landmark has *fewer* letters."
+    return "Nova's landmark has an *equal* number of letters."
 
 
 def pattern(guess: str, answer: str) -> str:
@@ -119,7 +125,6 @@ def pattern(guess: str, answer: str) -> str:
 
 
 class AstraBot(commands.Bot):
-
     def __init__(self):
         intents = discord.Intents.default()
         intents.reactions = True
@@ -234,13 +239,12 @@ def render_progress_map(start_name: str, visited: list[str]) -> io.BytesIO:
         px = round((x - MAP_X_LEFT) / (MAP_X_RIGHT - MAP_X_LEFT) * (width - 1))
         py = round((z - MAP_Z_TOP) / (MAP_Z_BOTTOM - MAP_Z_TOP) * (height - 1))
         return px, py
-
     route = [start_name, *visited]
     positions = [pixel(name) for name in route]
     # Draw only segments whose endpoints fall within the supplied map.
+
     def inside(point):
         return 0 <= point[0] < width and 0 <= point[1] < height
-
     for a, b in zip(positions, positions[1:]):
         if inside(a) and inside(b):
             draw.line((a, b), fill=(20, 20, 20), width=8)
@@ -291,11 +295,11 @@ async def send_progress_map(interaction: discord.Interaction, mode: str) -> None
                               color=discord.Color.purple())
         embed.set_image(url="attachment://journey_map.png")
         await interaction.followup.send(embed=embed,
-                                        file=discord.File(image, filename="journey_map.png"),
+                                        file=discord.File(
+                                            image, filename="journey_map.png"),
                                         ephemeral=True)
     except (OSError, ValueError, KeyError, discord.HTTPException):
         log.exception("Unable to render/send %s journey map", mode)
-
 
 
 def landmark_page(items: list, index: int, title: str) -> discord.Embed:
@@ -308,7 +312,13 @@ def landmark_page(items: list, index: int, title: str) -> discord.Embed:
     for entry in chunk:
         c = entry["coords"]
         embed.add_field(
-            name=entry["name"], value=f"{entry.get('region', 'Unknown region')}\nX: {c['x']} · Z: {c['z']}", inline=False)
+            name=entry["name"],
+            value=(
+                f"{entry.get('region', 'Unknown region')}\n"
+                f"🔤 Letters: **{len(letters(entry['name']))}**\n"
+                f"X: {c['x']} · Z: {c['z']}"
+            ),
+            inline=False)
     embed.set_footer(text=f"Page {index + 1}/{pages} · {len(items)} landmarks" + (
         " · React ⬅️ / ➡️ to turn pages" if pages > 1 else ""))
     return embed
@@ -389,7 +399,13 @@ async def landmark_autocomplete(interaction: discord.Interaction, current: str) 
     term = normalize(current)
     candidates = [p["name"]
                   for p in bot.landmarks if term in normalize(p["name"])]
-    return [app_commands.Choice(name=name[:100], value=name[:100]) for name in candidates[:25]]
+    choices = []
+    for name in candidates[:25]:
+        suffix = f" ({len(letters(name))} letters)"
+        # Discord limits choice labels and values to 100 characters each.
+        label = name[:100 - len(suffix)] + suffix
+        choices.append(app_commands.Choice(name=label, value=name))
+    return choices
 
 
 @bot.tree.command(name="guess", description="Guess where Nova is hiding and travel there.")
@@ -499,8 +515,6 @@ async def guess_command(interaction: discord.Interaction, landmark: str):
     except discord.HTTPException:
         log.exception("Unable to post public result for player %s",
                       interaction.user.id)
-
-
 # Practice Mode uses independent private sessions and never updates daily scores.
 # /practice starts a new round, /practiceguess guesses, /practicestatus shows progress.
 
@@ -508,7 +522,8 @@ async def guess_command(interaction: discord.Interaction, landmark: str):
 def practice_hint(current: dict, target: dict) -> str:
     parts = [f"🔤 {count_hint(current['name'], target['name'])}"]
     same_count = len(letters(current["name"])) == len(letters(target["name"]))
-    hint_type = random.choice(["pattern", "direction"]) if same_count else "direction"
+    hint_type = random.choice(
+        ["pattern", "direction"]) if same_count else "direction"
     if hint_type == "pattern":
         parts.append(f"🧩 `{pattern(current['name'], target['name'])}`")
     else:
@@ -797,8 +812,6 @@ async def scoreboard_command(interaction: discord.Interaction, day: app_commands
 async def on_ready():
     log.info("Logged in as %s (%s)", bot.user,
              bot.user.id if bot.user else "?")
-
-
 if __name__ == "__main__":
     token = config("DISCORD_TOKEN", default="")
     if not token:
